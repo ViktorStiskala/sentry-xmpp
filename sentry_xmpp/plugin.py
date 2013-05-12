@@ -1,9 +1,12 @@
 # coding=utf-8
 from sentry.plugins.bases.notify import NotificationPlugin
+from sentry.utils.http import absolute_uri
 import sentry_xmpp
 from django import forms
 from django.core.validators import email_re, ValidationError
+from django.core.urlresolvers import reverse
 import re
+import requests
 split_re = re.compile(r'\s*,\s*|\s+')
 
 
@@ -14,7 +17,6 @@ class XMPPConfigurationForm(forms.Form):
 			'placeholder': 'you@example.com'}))
 
 	def clean_send_to(self):
-		print 'something'
 		value = self.cleaned_data['send_to']
 		jids = filter(bool, split_re.split(value))
 
@@ -34,13 +36,24 @@ class XMPPSender(NotificationPlugin):
 
 	author = 'Viktor Stískala'
 
-	def __init__(self, min_level=0, include_loggers=None, exclude_loggers=None,
-				send_to=None, *args, **kwargs):
+	def __init__(self, min_level=0, include_loggers=None, exclude_loggers=None, *args, **kwargs):
 		super(XMPPSender, self).__init__(*args, **kwargs)
 		self.min_level = min_level
 		self.include_loggers = include_loggers
 		self.exclude_loggers = exclude_loggers
-		self.send_to = send_to
+
+	def get_group_url(self, group):
+		return absolute_uri(reverse('sentry-group', args=[
+			group.team.slug,
+			group.project.slug,
+			group.id,
+		]))
 
 	def post_process(self, group, event, is_new, is_sample, **kwargs):
-		print kwargs, self.send_to, group, event, is_new, is_sample
+		if is_new:
+			url = self.get_group_url(group)
+			send_to = self.get_option('send_to', event.project)
+			jids = filter(bool, split_re.split(send_to))
+			for jid in jids:
+				data = {"type": "message", "text": "In project %s there was an error %s\nIf you want to know more, visit: %s" % (event.project.name, event.message, url), "to": jid}
+				requests.post('http://niobe.abdoc.net:8088/', data=data)
