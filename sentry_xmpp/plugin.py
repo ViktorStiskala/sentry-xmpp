@@ -15,7 +15,7 @@ class XMPPConfigurationForm(forms.Form):
 		help_text='Enter one or more JIDs separated by commas or lines.',
 		widget=forms.Textarea(attrs={
 			'placeholder': 'you@example.com'}))
-	domain = forms.CharField(label='API Domain', help_text='API domain to which requests are send.')
+	url = forms.CharField(label='API URL', help_text='API URL to which requests are send. It must include http:// or https://')
 
 	def clean_send_to(self):
 		value = self.cleaned_data['send_to']
@@ -57,5 +57,4 @@ class XMPPSender(NotificationPlugin):
 			jids = filter(bool, split_re.split(send_to))
 			for jid in jids:
 				data = {"type": "message", "text": "In project %s there was an error %s\nIf you want to know more, visit: %s" % (event.project.name, event.message, url), "to": jid}
-				url = 'http://%s/' % self.get_option('domain', event.project)
-				requests.post(url, data=data)
+				requests.post(self.get_option('url', event.project), data=data)
