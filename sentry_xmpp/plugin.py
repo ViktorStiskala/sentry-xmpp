@@ -16,6 +16,8 @@ class XMPPConfigurationForm(forms.Form):
 		widget=forms.Textarea(attrs={
 			'placeholder': 'you@example.com'}))
 	url = forms.CharField(label='API URL', help_text='API URL to which requests are send. It must include http:// or https://')
+	name = forms.CharField(label='Athentication name', help_text='Optional authentication to HTTP server', required=False)
+	passwd = forms.CharField(label='Athetnication password', required=False)
 
 	def clean_send_to(self):
 		value = self.cleaned_data['send_to']
@@ -57,4 +59,9 @@ class XMPPSender(NotificationPlugin):
 			jids = filter(bool, split_re.split(send_to))
 			for jid in jids:
 				data = {"type": "message", "text": "In project %s there was an error %s\nIf you want to know more, visit: %s" % (event.project.name, event.message, url), "to": jid}
-				requests.post(self.get_option('url', event.project), data=data)
+				name = self.get_option('name', event.project)
+				passwd = self.get_option('passwd', event.project)
+				if name and passwd:
+					requests.post(self.get_option('url', event.project), data=data, auth=(name, passwd))
+				else:
+					requests.post(self.get_option('url', event.project), data=data)
