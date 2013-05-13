@@ -7,6 +7,7 @@ from django.core.validators import email_re, ValidationError
 from django.core.urlresolvers import reverse
 import re
 import requests
+from urlparse import urljoin
 split_re = re.compile(r'\s*,\s*|\s+')
 
 
@@ -58,10 +59,13 @@ class XMPPSender(NotificationPlugin):
 			send_to = self.get_option('send_to', event.project)
 			jids = filter(bool, split_re.split(send_to))
 			for jid in jids:
-				data = {"type": "message", "text": "In project %s there was an error %s\nIf you want to know more, visit: %s" % (event.project.name, event.message, url), "to": jid}
+				data = {"text": "In project %s there was an error %s\nIf you want to know more, visit: %s" % (event.project.name, event.message, url), "to": jid}
 				name = self.get_option('name', event.project)
 				passwd = self.get_option('passwd', event.project)
+
+				print self.get_option('url', event.project)
+
 				if name and passwd:
-					requests.post(self.get_option('url', event.project), data=data, auth=(name, passwd))
+					requests.post(urljoin(self.get_option('url', event.project), '/message/'), data=data, auth=(name, passwd))
 				else:
-					requests.post(self.get_option('url', event.project), data=data)
+					requests.post(urljoin(self.get_option('url', event.project), '/message/'), data=data)
