@@ -1,4 +1,5 @@
 # coding=utf-8
+from sentry.models import Option
 from sentry.plugins import Plugin
 from sentry.utils.http import absolute_uri
 import sentry_xmpp
@@ -14,7 +15,7 @@ split_re = re.compile(r'\s*,\s*|\s+')
 class XMPPSiteConfigurationForm(forms.Form):
     url = forms.URLField(label='API URL', help_text='API URL to which requests are send. It must include http:// or https://')
     name = forms.CharField(label='Authentication name', help_text='Optional authentication to HTTP server', required=False)
-    password = forms.CharField(label='Authentication password', required=False, widget=forms.PasswordInput)
+    password = forms.CharField(label='Authentication password', required=False, widget=forms.PasswordInput(render_value=True))
 
 
 class XMPPConfigurationForm(forms.Form):
@@ -46,6 +47,11 @@ class XMPPSender(Plugin):
     site_conf_form = XMPPSiteConfigurationForm
 
     author = 'Viktor Stískala'
+
+    def get_form_initial(self, project=None):
+        if project is None:
+            return {option.key[5:]: option.value for option in  Option.objects.filter(key__startswith='xmpp:')}
+        return super(XMPPSender, self).get_form_initial(project)
 
     # def __init__(self, min_level=0, include_loggers=None, exclude_loggers=None, *args, **kwargs):
     #     super(XMPPSender, self).__init__(*args, **kwargs)
