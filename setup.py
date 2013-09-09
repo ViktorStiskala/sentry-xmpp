@@ -26,6 +26,9 @@ setup(
     extras_require={'test': tests_require},
     test_suite='nose.collector',
     entry_points={
+        'sentry.apps': [
+            'sentry_xmpp = sentry_xmpp',
+        ],
         'sentry.plugins': [
             'xmpp = sentry_xmpp.plugin:XMPPSender'
         ],
