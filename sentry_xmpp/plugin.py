@@ -1,11 +1,9 @@
 # coding=utf-8
 from sentry.models import Option
 from sentry.plugins import Plugin
-from sentry.utils.http import absolute_uri
 import sentry_xmpp
 from django import forms
 from django.core.validators import email_re, ValidationError
-from django.core.urlresolvers import reverse
 import re
 import requests
 from urlparse import urljoin
@@ -50,33 +48,37 @@ class XMPPSender(Plugin):
 
     def get_form_initial(self, project=None):
         if project is None:
-            return {option.key[5:]: option.value for option in  Option.objects.filter(key__startswith='xmpp:')}
+            return {option.key[5:]: option.value for option in Option.objects.filter(key__startswith='xmpp:')}
         return super(XMPPSender, self).get_form_initial(project)
 
-    # def __init__(self, min_level=0, include_loggers=None, exclude_loggers=None, *args, **kwargs):
-    #     super(XMPPSender, self).__init__(*args, **kwargs)
-    #     self.min_level = min_level
-    #     self.include_loggers = include_loggers
-    #     self.exclude_loggers = exclude_loggers
+    def get_option(self, key, project=None, user=None):
+        """
+        Simple tweak to overcome strange behavior of metadata cache
+        """
+        if project is None and user is None:
+            options = {o.key: o.value for o in Option.objects.filter(key__startswith=self._get_option_key(''))}
+            try:
+                return options[self._get_option_key(key)]
+            except KeyError:
+                return ''
+        return super(XMPPSender, self).get_option(key, project, user)
 
-    # def get_group_url(self, group):
-    #     return absolute_uri(reverse('sentry-group', args=[
-    #         group.team.slug,
-    #         group.project.slug,
-    #         group.id,
-    #     ]))
-    #
-    # def post_process(self, group, event, is_new, is_sample, **kwargs):
-    #     if is_new:
-    #         url = self.get_group_url(group)
-    #         send_to = self.get_option('send_to', event.project)
-    #         jids = filter(bool, split_re.split(send_to))
-    #         for jid in jids:
-    #             data = {"text": "In project %s there was an error %s\nIf you want to know more, visit: %s" % (event.project.name, event.message, url), "to": jid}
-    #             name = self.get_option('name', event.project)
-    #             passwd = self.get_option('passwd', event.project)
-    #
-    #             if name and passwd:
-    #                 requests.post(urljoin(self.get_option('url', event.project), '/message/'), data=data, auth=(name, passwd))
-    #             else:
-    #                 requests.post(urljoin(self.get_option('url', event.project), '/message/'), data=data)
+    def post_process(self, group, event, is_new, is_sample, **kwargs):
+        if is_new:
+            log_url = group.get_absolute_url()
+
+            send_to = self.get_option('send_to', event.project)
+            jids = filter(bool, split_re.split(send_to))
+
+            for jid in jids:
+                data = {
+                    'to': jid,
+                    'text': '"{e.message}" in project "{e.project.name}" {url}'.format(e=event, url=log_url),
+                }
+
+                # optional HTTP auth
+                kwargs = {}
+                if self.get_option('name'):
+                    kwargs['auth'] = (self.get_option('name'), self.get_option('passwd'))
+
+                requests.post(urljoin(self.get_option('url'), '/message/'), data=data, **kwargs)
