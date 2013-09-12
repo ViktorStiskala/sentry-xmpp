@@ -63,12 +63,20 @@ class XMPPSender(Plugin):
                 return ''
         return super(XMPPSender, self).get_option(key, project, user)
 
+    def view(self, request, group, **kwargs):
+        super(XMPPSender, self).view(request, group, **kwargs)
+
+
     def post_process(self, group, event, is_new, is_sample, **kwargs):
         if is_new:
             log_url = group.get_absolute_url()
+            xmpp_bot_url = self.get_option('url')
 
             send_to = self.get_option('send_to', event.project)
             jids = filter(bool, split_re.split(send_to))
+
+            if not xmpp_bot_url or not jids:
+                return
 
             for jid in jids:
                 data = {
@@ -81,4 +89,4 @@ class XMPPSender(Plugin):
                 if self.get_option('name'):
                     kwargs['auth'] = (self.get_option('name'), self.get_option('passwd'))
 
-                requests.post(urljoin(self.get_option('url'), '/message/'), data=data, **kwargs)
+                requests.post(urljoin(xmpp_bot_url, '/message/'), data=data, **kwargs)
